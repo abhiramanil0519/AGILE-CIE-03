@@ -1,5 +1,4 @@
 name: Run Streamlit App
-
 on:
   push:
     branches:
@@ -12,30 +11,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+      - name: Start Minikube
+        uses: medyagh/setup-minikube@latest
 
-      - name: Install deps
-        run: pip install -r requirements.txt
-
-      - name: Build Docker Image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/agile-ml-dl-qml .
-
-      - name: Login to Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-      - name: Push Image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/agile-ml-dl-qml
-
-      - name: Run Container
+      - name: Deploy to Kubernetes
         run: |
-          docker run -d -p 8501:8501 --name test-container ${{ secrets.DOCKER_USERNAME }}/agile-ml-dl-qml
-          sleep 20
+          kubectl create deployment streamlit-app --image=${{ secrets.DOCKER_USERNAME }}/agile-ml-dl-qml
+          kubectl expose deployment streamlit-app --type=NodePort --port=8501
 
-      - name: Verify App
-        run: curl http://localhost:8501
+      - name: Wait for Pod
+        run: kubectl wait --for=condition=available --timeout=120s deployment/streamlit-app
 
-      - name: Stop Container
-        run: docker stop test-container
+      - name: Get Pods
+        run: kubectl get pods
+
+      - name: Get Service
+        run: kubectl get svc
+
+      - name: Describe Deployment
+        run: kubectl describe deployment streamlit-app
